@@ -1,15 +1,15 @@
 <?php
 
-namespace VendorName\Skeleton;
+namespace Padmission\MissingRecordRedirect;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 
-class SkeletonPlugin implements Plugin
+class MissingRecordRedirectPlugin implements Plugin
 {
     public function getId(): string
     {
-        return 'skeleton';
+        return 'missing-record-redirect';
     }
 
     public function register(Panel $panel): void
