@@ -2,16 +2,7 @@
 
 namespace Padmission\MissingRecordRedirect;
 
-use Filament\Support\Assets\AlpineComponent;
-use Filament\Support\Assets\Asset;
-use Filament\Support\Assets\Css;
-use Filament\Support\Assets\Js;
-use Filament\Support\Facades\FilamentAsset;
-use Filament\Support\Facades\FilamentIcon;
-use Illuminate\Filesystem\Filesystem;
-use Livewire\Features\SupportTesting\Testable;
 use Padmission\MissingRecordRedirect\Commands\MissingRecordRedirectCommand;
-use Padmission\MissingRecordRedirect\Testing\TestsMissingRecordRedirect;
 use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -19,8 +10,6 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 class MissingRecordRedirectServiceProvider extends PackageServiceProvider
 {
     public static string $name = 'missing-record-redirect';
-
-    public static string $viewNamespace = 'missing-record-redirect';
 
     public function configurePackage(Package $package): void
     {
@@ -34,8 +23,6 @@ class MissingRecordRedirectServiceProvider extends PackageServiceProvider
             ->hasInstallCommand(function (InstallCommand $command) {
                 $command
                     ->publishConfigFile()
-                    ->publishMigrations()
-                    ->askToRunMigrations()
                     ->askToStarRepoOnGitHub('padmission/missing-record-redirect');
             });
 
@@ -45,16 +32,8 @@ class MissingRecordRedirectServiceProvider extends PackageServiceProvider
             $package->hasConfigFile();
         }
 
-        if (file_exists($package->basePath('/../database/migrations'))) {
-            $package->hasMigrations($this->getMigrations());
-        }
-
         if (file_exists($package->basePath('/../resources/lang'))) {
             $package->hasTranslations();
-        }
-
-        if (file_exists($package->basePath('/../resources/views'))) {
-            $package->hasViews(static::$viewNamespace);
         }
     }
 
@@ -62,48 +41,7 @@ class MissingRecordRedirectServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        // Asset Registration
-        FilamentAsset::register(
-            $this->getAssets(),
-            $this->getAssetPackageName()
-        );
-
-        FilamentAsset::registerScriptData(
-            $this->getScriptData(),
-            $this->getAssetPackageName()
-        );
-
-        // Icon Registration
-        FilamentIcon::register($this->getIcons());
-
-        // Handle Stubs
-        if (app()->runningInConsole()) {
-            foreach (app(Filesystem::class)->files(__DIR__ . '/../stubs/') as $file) {
-                $this->publishes([
-                    $file->getRealPath() => base_path("stubs/missing-record-redirect/{$file->getFilename()}"),
-                ], 'missing-record-redirect-stubs');
-            }
-        }
-
-        // Testing
-        Testable::mixin(new TestsMissingRecordRedirect);
-    }
-
-    protected function getAssetPackageName(): ?string
-    {
-        return 'padmission/missing-record-redirect';
-    }
-
-    /**
-     * @return array<Asset>
-     */
-    protected function getAssets(): array
-    {
-        return [
-            // AlpineComponent::make('missing-record-redirect', __DIR__ . '/../resources/dist/components/missing-record-redirect.js'),
-            Css::make('missing-record-redirect-styles', __DIR__ . '/../resources/dist/missing-record-redirect.css'),
-            Js::make('missing-record-redirect-scripts', __DIR__ . '/../resources/dist/missing-record-redirect.js'),
-        ];
+        //
     }
 
     /**
@@ -113,40 +51,6 @@ class MissingRecordRedirectServiceProvider extends PackageServiceProvider
     {
         return [
             MissingRecordRedirectCommand::class,
-        ];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getIcons(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getRoutes(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function getScriptData(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getMigrations(): array
-    {
-        return [
-            'create_missing-record-redirect_table',
         ];
     }
 }
