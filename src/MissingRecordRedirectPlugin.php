@@ -8,6 +8,7 @@ use Filament\Notifications\Notification;
 use Filament\Panel;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Concerns\EvaluatesClosures;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,9 +25,7 @@ class MissingRecordRedirectPlugin implements Plugin
 
     protected string | Closure | null $notificationBody = null;
 
-    protected string | Closure | null $notificationType = 'warning';
-
-    protected bool | Closure $isPersistent = true;
+    protected ?Closure $exceptionCallback = null;
 
     public static function make(): static
     {
@@ -45,7 +44,19 @@ class MissingRecordRedirectPlugin implements Plugin
 
     public function boot(Panel $panel): void
     {
-        //
+        $handler = app(ExceptionHandler::class);
+
+        if (method_exists($handler, 'renderable')) {
+            $handler->renderable(function (NotFoundHttpException $e, Request $request) {
+                $response = $this->handleNotFoundHttpException($e, $request);
+
+                if ($response !== null) {
+                    return $response;
+                }
+
+                return null;
+            });
+        }
     }
 
     public function notification(?Closure $callback = null): static
@@ -79,57 +90,24 @@ class MissingRecordRedirectPlugin implements Plugin
         return $this->evaluate($this->notificationBody) ?? 'The record you were trying to view has been deleted or does not exist.';
     }
 
-    public function notificationType(string | Closure | null $type): static
+    public function handleException(Closure $callback): static
     {
-        $this->notificationType = $type;
+        $this->exceptionCallback = $callback;
 
         return $this;
     }
 
-    public function getNotificationType(): string
+    protected function handleNotFoundHttpException(NotFoundHttpException $e, Request $request): ?RedirectResponse
     {
-        return $this->evaluate($this->notificationType) ?? 'warning';
-    }
+        if ($this->exceptionCallback !== null) {
+            $callback = $this->exceptionCallback;
+            $callbackResponse = $callback($e, $request);
 
-    public function persistent(bool | Closure $isPersistent = true): static
-    {
-        $this->isPersistent = $isPersistent;
-
-        return $this;
-    }
-
-    public function isPersistent(): bool
-    {
-        return $this->evaluate($this->isPersistent);
-    }
-
-    public function getNotification(array $data = []): Notification
-    {
-        $notification = Notification::make()
-            ->title($this->getNotificationTitle())
-            ->body($this->getNotificationBody());
-
-        $type = $this->getNotificationType();
-        if (method_exists($notification, $type)) {
-            $notification->{$type}();
+            if ($callbackResponse instanceof RedirectResponse) {
+                return $callbackResponse;
+            }
         }
 
-        if ($this->isPersistent()) {
-            $notification->persistent();
-        }
-
-        if ($this->notificationCallback !== null) {
-            $notification = $this->evaluate($this->notificationCallback, [
-                'notification' => $notification,
-                ...$data,
-            ]) ?? $notification;
-        }
-
-        return $notification;
-    }
-
-    public function handleNotFoundHttpException(NotFoundHttpException $e, Request $request, Panel $panel): ?RedirectResponse
-    {
         $previous = $e->getPrevious();
 
         if (! $previous instanceof ModelNotFoundException) {
@@ -154,14 +132,26 @@ class MissingRecordRedirectPlugin implements Plugin
         $currentUrl = $request->url();
 
         if ($redirectUrl !== $currentUrl) {
-            $model = $previous->getModel();
+            $notification = Notification::make()
+                ->title($this->getNotificationTitle())
+                ->body($this->getNotificationBody())
+                ->warning()
+                ->persistent();
 
-            $notification = $this->getNotification([
-                'resource' => $resource,
-                'model' => $model,
-                'request' => $request,
-                'previousException' => $previous,
-            ]);
+            if ($this->notificationCallback !== null) {
+                $context = new NotificationContext(
+                    resourceClass: $resource,
+                    exception: $previous,
+                    request: $request,
+                );
+
+                $callback = $this->notificationCallback;
+                $result = $callback($notification, $context);
+
+                if ($result instanceof Notification) {
+                    $notification = $result;
+                }
+            }
 
             $notification->send();
 
