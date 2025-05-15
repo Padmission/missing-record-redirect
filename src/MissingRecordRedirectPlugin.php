@@ -142,8 +142,9 @@ class MissingRecordRedirectPlugin implements Plugin
             if ($this->notificationCallback !== null) {
                 $context = new NotificationContext(
                     resourceClass: $resource,
-                    exception: $previous,
+                    page: $controller,
                     request: $request,
+                    exception: $previous,
                 );
 
                 $callback = $this->notificationCallback;
