@@ -6,6 +6,7 @@ use Closure;
 use Filament\Contracts\Plugin;
 use Filament\Notifications\Notification;
 use Filament\Panel;
+use Filament\Resources\Pages\EditRecord;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Concerns\EvaluatesClosures;
 use Illuminate\Contracts\Debug\ExceptionHandler;
@@ -122,7 +123,7 @@ class MissingRecordRedirectPlugin implements Plugin
 
         $controller = $route->getController();
 
-        if (! $controller instanceof ViewRecord) {
+        if (! ($controller instanceof ViewRecord || $controller instanceof EditRecord)) {
             return null;
         }
 
