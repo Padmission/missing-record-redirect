@@ -40,7 +40,7 @@ public function panel(Panel $panel): Panel
 }
 ```
 
-That's it! The plugin will now handle missing record exceptions by redirecting users to the resource index page with a notification.
+The plugin will now handle missing record exceptions by redirecting users to the resource index page with a notification.
 
 ## Configuration
 
@@ -49,23 +49,22 @@ That's it! The plugin will now handle missing record exceptions by redirecting u
 You can customize the notification that is shown to users:
 
 ```php
-->plugin(
-    MissingRecordRedirectPlugin::make()
-        // Set simple text properties
-        ->notificationTitle('Record Not Available')
-        ->notificationBody('The record you were trying to access does not exist.')
+// Set simple text properties
+MissingRecordRedirectPlugin::make()
+    ->notificationTitle('Record Not Available')
+    ->notificationBody('The record you were trying to access does not exist.')
+    
+// Or use the notification callback for advanced customization
+MissingRecordRedirectPlugin::make()
+    ->notification(function (Notification $notification, NotificationContext $context): Notification {
+        $action = $context->isEditPage() ? 'edit' : 'view';
         
-        // Or use the notification callback for advanced customization
-        ->notification(function (Notification $notification, NotificationContext $context): Notification {
-            $action = $context->isEditPage() ? 'edit' : 'view';
-            
-            return $notification
-                ->title('Record Not Found')
-                ->body("The {$context->getResource()::getModelLabel()} you were trying to {$action} has been deleted or does not exist.")
-                ->warning()
-                ->persistent();
-        })
-)
+        return $notification
+            ->title('Record Not Found')
+            ->body("The {$context->getResource()::getModelLabel()} you were trying to {$action} has been deleted or does not exist.")
+            ->warning()
+            ->persistent();
+    })
 ```
 
 ### Custom Redirect URL
@@ -73,22 +72,21 @@ You can customize the notification that is shown to users:
 Change where users are redirected when a record is not found:
 
 ```php
-->plugin(
-    MissingRecordRedirectPlugin::make()
-        // Set a static URL
-        ->redirectUrl('/admin/dashboard')
+// Set a static URL
+MissingRecordRedirectPlugin::make()
+    ->redirectUrl('/admin/dashboard')
+    
+// Or use a callback for dynamic URLs based on context
+MissingRecordRedirectPlugin::make()
+    ->redirectUrl(function (NotificationContext $context) {
+        // For edit pages, redirect to create page
+        if ($context->isEditPage()) {
+            return $context->getResource()::getUrl('create');
+        }
         
-        // Or use a callback for dynamic URLs based on context
-        ->redirectUrl(function (NotificationContext $context) {
-            // For edit pages, redirect to create page
-            if ($context->isEditPage()) {
-                return $context->getResource()::getUrl('create');
-            }
-            
-            // Default to resource list
-            return $context->getResource()::getUrl();
-        })
-)
+        // Default to resource list
+        return $context->getResource()::getUrl();
+    })
 ```
 
 ### Excluding Resources
@@ -96,25 +94,23 @@ Change where users are redirected when a record is not found:
 You can exclude specific resources, models, or page types from being handled by the plugin:
 
 ```php
-->plugin(
-    MissingRecordRedirectPlugin::make()
-        // Exclude specific resources
-        ->excludeResources(
-            App\Filament\Resources\UserResource::class,
-            App\Filament\Resources\ProductResource::class
-        )
-        
-        // Exclude specific models
-        ->excludeModels(
-            App\Models\Setting::class,
-            App\Models\SystemLog::class
-        )
-        
-        // Exclude specific page classes
-        ->excludeResourcePages(
-            App\Filament\Resources\PostResource\Pages\EditPost::class
-        )
-)
+MissingRecordRedirectPlugin::make()
+    // Exclude specific resources
+    ->excludeResources(
+        App\Filament\Resources\UserResource::class,
+        App\Filament\Resources\ProductResource::class
+    )
+    
+    // Exclude specific models
+    ->excludeModels(
+        App\Models\Setting::class,
+        App\Models\SystemLog::class
+    )
+    
+    // Exclude specific page classes
+    ->excludeResourcePages(
+        App\Filament\Resources\PostResource\Pages\EditPost::class
+    )
 ```
 
 ### Advanced Exception Handling
@@ -122,13 +118,11 @@ You can exclude specific resources, models, or page types from being handled by 
 For complete control over exception handling:
 
 ```php
-->plugin(
-    MissingRecordRedirectPlugin::make()
-        ->handleException(function (NotFoundHttpException $exception, Request $request) {
-            // Custom exception handling logic
-            // Return a RedirectResponse or null
-        })
-)
+MissingRecordRedirectPlugin::make()
+    ->handleException(function (NotFoundHttpException $exception, Request $request) {
+        // Custom exception handling logic
+        // Return a RedirectResponse or null
+    })
 ```
 
 ## NotificationContext API
