@@ -6,9 +6,11 @@ use Closure;
 use Filament\Contracts\Plugin;
 use Filament\Notifications\Notification;
 use Filament\Panel;
+use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Filament\Support\Concerns\EvaluatesClosures;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,9 +31,32 @@ class MissingRecordRedirectPlugin implements Plugin
 
     protected ?Closure $exceptionCallback = null;
 
+    /**
+     * @var array<class-string<\Filament\Resources\Resource>>
+     */
+    protected array $excludedResources = [];
+
+    /**
+     * @var array<class-string<Page>>
+     */
+    protected array $excludedPages = [];
+
+    /**
+     * @var array<class-string<Model>>
+     */
+    protected array $excludedModels = [];
+
     public static function make(): static
     {
         return app(static::class);
+    }
+
+    public static function get(): static
+    {
+        /** @var static $plugin */
+        $plugin = filament(app(static::class)->getId());
+
+        return $plugin;
     }
 
     public function getId(): string
@@ -96,6 +121,45 @@ class MissingRecordRedirectPlugin implements Plugin
         return $this;
     }
 
+    /**
+     * @param  class-string<\Filament\Resources\Resource>  ...$resources
+     */
+    public function excludeResources(string ...$resources): static
+    {
+        $this->excludedResources = [
+            ...$this->excludedResources,
+            ...$resources,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  class-string<Page>  ...$pages
+     */
+    public function excludePages(string ...$pages): static
+    {
+        $this->excludedPages = [
+            ...$this->excludedPages,
+            ...$pages,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  class-string<Model>  ...$models
+     */
+    public function excludeModels(string ...$models): static
+    {
+        $this->excludedModels = [
+            ...$this->excludedModels,
+            ...$models,
+        ];
+
+        return $this;
+    }
+
     public function getNotificationTitle(): string
     {
         return $this->evaluate($this->notificationTitle) ?? 'Record Deleted';
@@ -104,6 +168,30 @@ class MissingRecordRedirectPlugin implements Plugin
     public function getNotificationBody(): string
     {
         return $this->evaluate($this->notificationBody) ?? 'The record you were trying to view has been deleted or does not exist.';
+    }
+
+    /**
+     * @return array<class-string<\Filament\Resources\Resource>>
+     */
+    public function getExcludedResources(): array
+    {
+        return $this->excludedResources;
+    }
+
+    /**
+     * @return array<class-string<Page>>
+     */
+    public function getExcludedPages(): array
+    {
+        return $this->excludedPages;
+    }
+
+    /**
+     * @return array<class-string<Model>>
+     */
+    public function getExcludedModels(): array
+    {
+        return $this->excludedModels;
     }
 
     protected function handleNotFoundHttpException(NotFoundHttpException $e, Request $request): ?RedirectResponse
@@ -138,6 +226,10 @@ class MissingRecordRedirectPlugin implements Plugin
         }
 
         $resource = $controller::getResource();
+
+        if (! $this->shouldHandle($resource, $controller)) {
+            return null;
+        }
 
         $context = new NotificationContext(
             resourceClass: $resource,
@@ -177,16 +269,28 @@ class MissingRecordRedirectPlugin implements Plugin
     protected function usesInteractsWithRecordTrait(Page $page): bool
     {
         return array_key_exists(
-            'Filament\\Resources\\Pages\\Concerns\\InteractsWithRecord',
+            InteractsWithRecord::class,
             class_uses_recursive($page),
         );
     }
 
-    public static function get(): static
+    /**
+     * @param  class-string<\Filament\Resources\Resource>  $resourceClass
+     */
+    protected function shouldHandle(string $resourceClass, Page $page): bool
     {
-        /** @var static $plugin */
-        $plugin = filament(app(static::class)->getId());
+        if (in_array($resourceClass, $this->getExcludedResources())) {
+            return false;
+        }
 
-        return $plugin;
+        if (in_array($page::class, $this->getExcludedPages())) {
+            return false;
+        }
+
+        if (in_array($resourceClass::getModel(), $this->getExcludedModels())) {
+            return false;
+        }
+
+        return true;
     }
 }
