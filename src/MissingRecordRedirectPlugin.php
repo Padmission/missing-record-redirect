@@ -162,12 +162,12 @@ class MissingRecordRedirectPlugin implements Plugin
 
     public function getNotificationTitle(): string
     {
-        return $this->evaluate($this->notificationTitle) ?? 'Record Deleted';
+        return $this->evaluate($this->notificationTitle) ?? __('missing-record-redirect::default.notification.title');
     }
 
     public function getNotificationBody(): string
     {
-        return $this->evaluate($this->notificationBody) ?? 'The record you were trying to view has been deleted or does not exist.';
+        return $this->evaluate($this->notificationBody) ?? __('missing-record-redirect::default.notification.body');
     }
 
     /**
