@@ -1,13 +1,19 @@
-# This is my package missing-record-redirect
+# Missing Record Redirect
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/padmission/missing-record-redirect.svg?style=flat-square)](https://packagist.org/packages/padmission/missing-record-redirect)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/padmission/missing-record-redirect/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/padmission/missing-record-redirect/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/padmission/missing-record-redirect/fix-php-code-styling.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/padmission/missing-record-redirect/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/padmission/missing-record-redirect.svg?style=flat-square)](https://packagist.org/packages/padmission/missing-record-redirect)
 
+A Filament plugin that provides elegant handling of "record not found" exceptions. When users try to view or edit a non-existent record in Filament, they'll be redirected to the resource's index page with a customizable notification instead of seeing an error page.
 
+## Features
 
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+- Seamlessly redirects users when accessing non-existent records
+- Displays customizable notifications explaining what happened
+- Custom redirect destinations based on context
+- Supports all resource pages using the `InteractsWithRecord` trait
+- Fully customizable notification appearance and behavior
+- Granular control over which resources and pages are handled
+- Simple integration with any Filament panel
 
 ## Installation
 
@@ -17,44 +23,126 @@ You can install the package via composer:
 composer require padmission/missing-record-redirect
 ```
 
-You can publish and run the migrations with:
-
-```bash
-php artisan vendor:publish --tag="missing-record-redirect-migrations"
-php artisan migrate
-```
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag="missing-record-redirect-config"
-```
-
-Optionally, you can publish the views using
-
-```bash
-php artisan vendor:publish --tag="missing-record-redirect-views"
-```
-
-This is the contents of the published config file:
-
-```php
-return [
-];
-```
-
 ## Usage
 
+Add the plugin to your Filament panel in a panel provider:
+
 ```php
-$missingRecordRedirect = new Padmission\MissingRecordRedirect();
-echo $missingRecordRedirect->echoPhrase('Hello, Padmission!');
+use Padmission\MissingRecordRedirect\MissingRecordRedirectPlugin;
+
+public function panel(Panel $panel): Panel
+{
+    return $panel
+        // ...
+        ->plugin(
+            MissingRecordRedirectPlugin::make()
+        );
+}
 ```
 
-## Testing
+That's it! The plugin will now handle missing record exceptions by redirecting users to the resource index page with a notification.
 
-```bash
-composer test
+## Configuration
+
+### Customizing the Notification
+
+You can customize the notification that is shown to users:
+
+```php
+->plugin(
+    MissingRecordRedirectPlugin::make()
+        // Set simple text properties
+        ->notificationTitle('Record Not Available')
+        ->notificationBody('The record you were trying to access does not exist.')
+        
+        // Or use the notification callback for advanced customization
+        ->notification(function (Notification $notification, NotificationContext $context): Notification {
+            $action = $context->isEditPage() ? 'edit' : 'view';
+            
+            return $notification
+                ->title('Record Not Found')
+                ->body("The {$context->getResource()::getModelLabel()} you were trying to {$action} has been deleted or does not exist.")
+                ->warning()
+                ->persistent();
+        })
+)
 ```
+
+### Custom Redirect URL
+
+Change where users are redirected when a record is not found:
+
+```php
+->plugin(
+    MissingRecordRedirectPlugin::make()
+        // Set a static URL
+        ->redirectUrl('/admin/dashboard')
+        
+        // Or use a callback for dynamic URLs based on context
+        ->redirectUrl(function (NotificationContext $context) {
+            // For edit pages, redirect to create page
+            if ($context->isEditPage()) {
+                return $context->getResource()::getUrl('create');
+            }
+            
+            // Default to resource list
+            return $context->getResource()::getUrl();
+        })
+)
+```
+
+### Excluding Resources
+
+You can exclude specific resources, models, or page types from being handled by the plugin:
+
+```php
+->plugin(
+    MissingRecordRedirectPlugin::make()
+        // Exclude specific resources
+        ->excludeResources(
+            App\Filament\Resources\UserResource::class,
+            App\Filament\Resources\ProductResource::class
+        )
+        
+        // Exclude specific models
+        ->excludeModels(
+            App\Models\Setting::class,
+            App\Models\SystemLog::class
+        )
+        
+        // Exclude specific page classes
+        ->excludeResourcePages(
+            App\Filament\Resources\PostResource\Pages\EditPost::class
+        )
+)
+```
+
+### Advanced Exception Handling
+
+For complete control over exception handling:
+
+```php
+->plugin(
+    MissingRecordRedirectPlugin::make()
+        ->handleException(function (NotFoundHttpException $exception, Request $request) {
+            // Custom exception handling logic
+            // Return a RedirectResponse or null
+        })
+)
+```
+
+## NotificationContext API
+
+The `NotificationContext` object provides access to information about the current request:
+
+| Method           | Description                    |
+|------------------|--------------------------------|
+| `getResource()`  | Get the resource class name    |
+| `getPage()`      | Get the page instance          |
+| `getRequest()`   | Get the current request        |
+| `getException()` | Get the ModelNotFoundException |
+| `isViewPage()`   | Check if this is a view page   |
+| `isEditPage()`   | Check if this is an edit page  |
 
 ## Changelog
 
