@@ -6,8 +6,7 @@ use Closure;
 use Filament\Contracts\Plugin;
 use Filament\Notifications\Notification;
 use Filament\Panel;
-use Filament\Resources\Pages\EditRecord;
-use Filament\Resources\Pages\ViewRecord;
+use Filament\Resources\Pages\Page;
 use Filament\Support\Concerns\EvaluatesClosures;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -20,11 +19,13 @@ class MissingRecordRedirectPlugin implements Plugin
 {
     use EvaluatesClosures;
 
-    protected ?Closure $notificationCallback = null;
-
     protected string | Closure | null $notificationTitle = null;
 
     protected string | Closure | null $notificationBody = null;
+
+    protected string | Closure | null $redirectUrl = null;
+
+    protected ?Closure $notificationCallback = null;
 
     protected ?Closure $exceptionCallback = null;
 
@@ -60,6 +61,27 @@ class MissingRecordRedirectPlugin implements Plugin
         }
     }
 
+    public function notificationTitle(string | Closure | null $title = null): static
+    {
+        $this->notificationTitle = $title;
+
+        return $this;
+    }
+
+    public function notificationBody(string | Closure | null $body = null): static
+    {
+        $this->notificationBody = $body;
+
+        return $this;
+    }
+
+    public function redirectUrl(string | Closure | null $url = null): static
+    {
+        $this->redirectUrl = $url;
+
+        return $this;
+    }
+
     public function notification(?Closure $callback = null): static
     {
         $this->notificationCallback = $callback;
@@ -67,9 +89,9 @@ class MissingRecordRedirectPlugin implements Plugin
         return $this;
     }
 
-    public function notificationTitle(string | Closure | null $title): static
+    public function handleException(?Closure $callback = null): static
     {
-        $this->notificationTitle = $title;
+        $this->exceptionCallback = $callback;
 
         return $this;
     }
@@ -79,30 +101,18 @@ class MissingRecordRedirectPlugin implements Plugin
         return $this->evaluate($this->notificationTitle) ?? 'Record Deleted';
     }
 
-    public function notificationBody(string | Closure | null $body): static
-    {
-        $this->notificationBody = $body;
-
-        return $this;
-    }
-
     public function getNotificationBody(): string
     {
         return $this->evaluate($this->notificationBody) ?? 'The record you were trying to view has been deleted or does not exist.';
     }
 
-    public function handleException(Closure $callback): static
-    {
-        $this->exceptionCallback = $callback;
-
-        return $this;
-    }
-
     protected function handleNotFoundHttpException(NotFoundHttpException $e, Request $request): ?RedirectResponse
     {
         if ($this->exceptionCallback !== null) {
-            $callback = $this->exceptionCallback;
-            $callbackResponse = $callback($e, $request);
+            $callbackResponse = $this->evaluate($this->exceptionCallback, [
+                'exception' => $e,
+                'request' => $request,
+            ]);
 
             if ($callbackResponse instanceof RedirectResponse) {
                 return $callbackResponse;
@@ -123,13 +133,23 @@ class MissingRecordRedirectPlugin implements Plugin
 
         $controller = $route->getController();
 
-        if (! ($controller instanceof ViewRecord || $controller instanceof EditRecord)) {
+        if (! $controller instanceof Page || ! $this->usesInteractsWithRecordTrait($controller)) {
             return null;
         }
 
         $resource = $controller::getResource();
 
-        $redirectUrl = $resource::getUrl();
+        $context = new NotificationContext(
+            resourceClass: $resource,
+            page: $controller,
+            request: $request,
+            exception: $previous,
+        );
+
+        $redirectUrl = $this->evaluate($this->redirectUrl, [
+            'context' => $context,
+        ]) ?? $resource::getUrl();
+
         $currentUrl = $request->url();
 
         if ($redirectUrl !== $currentUrl) {
@@ -140,19 +160,10 @@ class MissingRecordRedirectPlugin implements Plugin
                 ->persistent();
 
             if ($this->notificationCallback !== null) {
-                $context = new NotificationContext(
-                    resourceClass: $resource,
-                    page: $controller,
-                    request: $request,
-                    exception: $previous,
-                );
-
-                $callback = $this->notificationCallback;
-                $result = $callback($notification, $context);
-
-                if ($result instanceof Notification) {
-                    $notification = $result;
-                }
+                $notification = $this->evaluate($this->notificationCallback, [
+                    'notification' => $notification,
+                    'context' => $context,
+                ]) ?? $notification;
             }
 
             $notification->send();
@@ -161,6 +172,14 @@ class MissingRecordRedirectPlugin implements Plugin
         }
 
         return null;
+    }
+
+    protected function usesInteractsWithRecordTrait(Page $page): bool
+    {
+        return array_key_exists(
+            'Filament\\Resources\\Pages\\Concerns\\InteractsWithRecord',
+            class_uses_recursive($page),
+        );
     }
 
     public static function get(): static
