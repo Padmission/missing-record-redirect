@@ -107,8 +107,8 @@ MissingRecordRedirectPlugin::make()
         App\Models\SystemLog::class
     )
     
-    // Exclude specific page classes
-    ->excludeResourcePages(
+    // Exclude specific resource page classes
+    ->excludePages(
         App\Filament\Resources\PostResource\Pages\EditPost::class
     )
 ```
